@@ -4,7 +4,6 @@ Stores every application attempt, result, and status.
 Prevents duplicate applications. Generates reports.
 """
 
-import asyncio
 import aiosqlite
 import logging
 from datetime import datetime, timedelta

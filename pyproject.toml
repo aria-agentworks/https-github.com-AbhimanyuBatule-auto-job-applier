@@ -1,3 +1,9 @@
+[project]
+name = "auto-job-applier"
+version = "1.0.0"
+description = "AI-powered adaptive job application bot"
+requires-python = ">=3.11"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

@@ -11,7 +11,6 @@ and re-inject them at runtime. This keeps portal sessions alive in CI.
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from src.core.config import PROJECT_ROOT
 

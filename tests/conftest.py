@@ -2,7 +2,6 @@
 Shared test fixtures for auto-job-applier test suite.
 """
 
-import asyncio
 import os
 import sys
 import pytest
@@ -13,14 +12,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Ensure project root is on path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create a session-scoped event loop."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture

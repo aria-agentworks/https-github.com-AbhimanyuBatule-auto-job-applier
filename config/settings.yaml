@@ -93,21 +93,6 @@ portals:
     max_applications_per_day: 3
     use_saved_session: true
 
-  hirist:
-    enabled: false
-    base_url: "https://www.hirist.tech"
-    max_applications_per_day: 3
-
-  otta:
-    enabled: false
-    base_url: "https://otta.com"
-    max_applications_per_day: 2
-
-  seek:
-    enabled: false
-    base_url: "https://www.seek.com.au"
-    max_applications_per_day: 2
-
   generic_career_page:
     enabled: true
     max_applications_per_day: 5

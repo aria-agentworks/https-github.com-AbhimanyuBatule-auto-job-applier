@@ -14,7 +14,6 @@ Falls back to CSV export if Sheets creds aren't configured.
 """
 
 import asyncio
-import json
 import logging
 import os
 from datetime import datetime

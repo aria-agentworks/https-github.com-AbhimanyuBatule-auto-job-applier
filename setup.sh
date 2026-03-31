@@ -44,6 +44,12 @@ echo "✓ Playwright browsers installed"
 # Create data directory
 mkdir -p data logs
 
+# Create profile.yaml from example if not exists
+if [ ! -f "config/profile.yaml" ]; then
+    cp config/profile.yaml.example config/profile.yaml
+    echo "✓ config/profile.yaml created (edit with your details)"
+fi
+
 # Create .env file if not exists
 if [ ! -f ".env" ]; then
     cat > .env << 'EOF'

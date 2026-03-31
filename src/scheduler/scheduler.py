@@ -6,7 +6,6 @@ Uses APScheduler for cron-like scheduling.
 import asyncio
 import logging
 import signal
-import sys
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler

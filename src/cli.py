@@ -5,11 +5,9 @@ Rich, interactive command-line interface.
 
 import asyncio
 import click
-import json
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich import box
 
 console = Console()
@@ -205,6 +203,105 @@ def export_csv():
             console.print("[yellow]No data to export yet.[/]")
 
     asyncio.run(_run())
+
+
+@cli.command()
+def validate():
+    """Check all configs, API keys, browser, and DB without applying."""
+    console.print(Panel(BANNER, border_style="cyan"))
+    console.print("[bold cyan]VALIDATION CHECK[/]\n")
+
+    all_ok = True
+
+    # ── 1. Config files ──────────────────────────────────────
+    from src.core.config import CONFIG_DIR, DATA_DIR
+
+    settings_path = CONFIG_DIR / "settings.yaml"
+    profile_path = CONFIG_DIR / "profile.yaml"
+
+    if settings_path.exists():
+        console.print("[green]✓[/] config/settings.yaml found")
+    else:
+        console.print("[red]✗[/] config/settings.yaml MISSING")
+        all_ok = False
+
+    if profile_path.exists():
+        console.print("[green]✓[/] config/profile.yaml found")
+    else:
+        console.print("[red]✗[/] config/profile.yaml MISSING — run: cp config/profile.yaml.example config/profile.yaml")
+        all_ok = False
+
+    # ── 2. Config validation ─────────────────────────────────
+    from src.core.config import config
+
+    provider = config.get("ai", "provider", default="gemini")
+    api_key = config.get("ai", provider, "api_key") or ""
+    if api_key and api_key != "your_key_here":
+        console.print(f"[green]✓[/] AI provider '{provider}' API key is set")
+    else:
+        console.print(f"[red]✗[/] AI provider '{provider}' API key NOT set — set GEMINI_API_KEY env var or ai.gemini.api_key in settings.yaml")
+        all_ok = False
+
+    # ── 3. Profile validation ────────────────────────────────
+    email = config.get_profile("personal", "email") or ""
+    if email and email != "your.email@example.com":
+        console.print(f"[green]✓[/] Profile email configured: {email}")
+    else:
+        console.print("[red]✗[/] Profile email not configured — edit config/profile.yaml")
+        all_ok = False
+
+    keywords = config.get_profile("job_search", "keywords") or []
+    if keywords:
+        console.print(f"[green]✓[/] Job search keywords: {', '.join(keywords[:5])}")
+    else:
+        console.print("[yellow]⚠[/] No job search keywords configured in profile.yaml")
+
+    # ── 4. Enabled portals ───────────────────────────────────
+    portals = config.settings.get("portals", {})
+    enabled = [name for name, cfg in portals.items() if isinstance(cfg, dict) and cfg.get("enabled")]
+    if enabled:
+        console.print(f"[green]✓[/] Enabled portals: {', '.join(enabled)}")
+    else:
+        console.print("[red]✗[/] No portals enabled — edit config/settings.yaml")
+        all_ok = False
+
+    # ── 5. Resume file ───────────────────────────────────────
+    resume_path = DATA_DIR / "resume.pdf"
+    if resume_path.exists():
+        size_kb = resume_path.stat().st_size / 1024
+        console.print(f"[green]✓[/] Resume found: data/resume.pdf ({size_kb:.0f} KB)")
+    else:
+        console.print("[yellow]⚠[/] No resume at data/resume.pdf — file upload fields won't work")
+
+    # ── 6. Playwright browser ────────────────────────────────
+    import shutil
+    if shutil.which("playwright"):
+        console.print("[green]✓[/] Playwright CLI available")
+    else:
+        console.print("[yellow]⚠[/] Playwright CLI not found in PATH — run: pip install playwright && playwright install chromium")
+
+    # ── 7. Database ──────────────────────────────────────────
+    db_path = DATA_DIR / "applications.db"
+    if db_path.exists():
+        size_kb = db_path.stat().st_size / 1024
+        console.print(f"[green]✓[/] Database exists: data/applications.db ({size_kb:.0f} KB)")
+    else:
+        console.print("[dim]ℹ[/] Database will be created on first run")
+
+    # ── 8. .env file ─────────────────────────────────────────
+    import os
+    env_path = CONFIG_DIR.parent / ".env"
+    if env_path.exists():
+        console.print("[green]✓[/] .env file found")
+    else:
+        console.print("[dim]ℹ[/] No .env file — using settings.yaml and environment variables only")
+
+    # ── Summary ──────────────────────────────────────────────
+    console.print("")
+    if all_ok:
+        console.print(Panel("[bold green]All critical checks passed! Ready to run: python main.py run[/]", border_style="green"))
+    else:
+        console.print(Panel("[bold red]Some checks failed. Fix the issues above before running.[/]", border_style="red"))
 
 
 @cli.command()
