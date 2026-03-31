@@ -85,6 +85,12 @@ class BrowserManager:
         if self._stealth:
             await self._apply_stealth_scripts()
 
+        # Import saved cookies (critical for CI/CD headless runs)
+        from src.utils.cookies import import_cookies
+        imported = await import_cookies(self._context)
+        if imported:
+            logger.info(f"Restored {imported} session cookies")
+
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
         self._page.set_default_timeout(self._timeout)
         self._page.set_default_navigation_timeout(self._nav_timeout)
@@ -93,8 +99,14 @@ class BrowserManager:
         return self._page
 
     async def stop(self):
-        """Gracefully close the browser."""
+        """Gracefully close the browser - refresh cookies before exit."""
         if self._context:
+            # Save refreshed cookies for next run
+            try:
+                from src.utils.cookies import refresh_cookies
+                await refresh_cookies(self._context)
+            except Exception as e:
+                logger.debug(f"Cookie refresh on stop: {e}")
             await self._context.close()
         if self._playwright:
             await self._playwright.stop()

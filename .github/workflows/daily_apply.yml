@@ -1,0 +1,209 @@
+# ============================================================
+# Auto Job Applier - GitHub Actions Daily Cron Job
+# ============================================================
+# Runs automatically every day. Zero human intervention needed.
+#
+# SETUP (one-time):
+# 1. Push this repo to GitHub
+# 2. Run `python main.py login` locally (saves browser cookies)
+# 3. Run `python main.py export-cookies` to get cookies JSON
+# 4. Add these GitHub Secrets:
+#    - GEMINI_API_KEY          (from aistudio.google.com)
+#    - BROWSER_COOKIES         (output of export-cookies)
+#    - GOOGLE_SHEETS_CREDS     (service account JSON, base64)
+#    - GOOGLE_SHEET_ID         (from your Google Sheet URL)
+#    - TELEGRAM_BOT_TOKEN      (optional, for notifications)
+#    - TELEGRAM_CHAT_ID        (optional, for notifications)
+# ============================================================
+
+name: Daily Job Applications
+
+on:
+  schedule:
+    # Runs at 9:00 AM IST (3:30 AM UTC) every day
+    - cron: '30 3 * * *'
+    # Also run at 3:00 PM IST (9:30 AM UTC) for a second pass
+    - cron: '30 9 * * *'
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      portal:
+        description: 'Run specific portal only (leave empty for all)'
+        required: false
+        default: ''
+      max_applications:
+        description: 'Max applications for this run'
+        required: false
+        default: '10'
+
+# Prevent multiple runs from overlapping
+concurrency:
+  group: job-applier
+  cancel-in-progress: false
+
+permissions:
+  contents: write    # To push updated cookies & DB back
+
+jobs:
+  apply:
+    name: Apply to Jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 60   # Hard cap - never hang forever
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Python Setup ────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium --with-deps
+
+      # ── Restore State ───────────────────────────────────────
+      - name: Restore cookies & session data
+        run: |
+          mkdir -p data
+          # Restore cookies from secret
+          if [ -n "${{ secrets.BROWSER_COOKIES }}" ]; then
+            echo '${{ secrets.BROWSER_COOKIES }}' > data/cookies.json
+            echo "✓ Cookies restored"
+          else
+            echo "⚠ No cookies found - portal logins will fail"
+          fi
+
+      - name: Restore application database from cache
+        uses: actions/cache@v4
+        with:
+          path: data/applications.db
+          key: applications-db-${{ github.run_number }}
+          restore-keys: |
+            applications-db-
+
+      # ── Configure ───────────────────────────────────────────
+      - name: Set up environment
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_SHEETS_CREDS_B64: ${{ secrets.GOOGLE_SHEETS_CREDS }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Create .env file from secrets
+          cat > .env << EOF
+          GEMINI_API_KEY=${GEMINI_API_KEY}
+          TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+          TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+          GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
+          EOF
+
+          # Decode Google Sheets service account credentials
+          if [ -n "${GOOGLE_SHEETS_CREDS_B64}" ]; then
+            echo "${GOOGLE_SHEETS_CREDS_B64}" | base64 -d > data/google_sheets_creds.json
+            echo "✓ Google Sheets credentials restored"
+          fi
+
+      # ── Run Application Bot ─────────────────────────────────
+      - name: Run job applications
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          CI: 'true'
+          HEADLESS: 'true'
+        run: |
+          PORTAL="${{ github.event.inputs.portal }}"
+          MAX_APPS="${{ github.event.inputs.max_applications || '10' }}"
+
+          echo "═══════════════════════════════════════════"
+          echo "  Auto Job Applier - GHA Run"
+          echo "  Time: $(TZ='Asia/Kolkata' date)"
+          echo "  Portal: ${PORTAL:-all}"
+          echo "  Max Applications: ${MAX_APPS}"
+          echo "═══════════════════════════════════════════"
+
+          if [ -n "${PORTAL}" ]; then
+            python main.py run-portal "${PORTAL}" 2>&1 | tee logs/gha_run.log || true
+          else
+            python main.py run 2>&1 | tee logs/gha_run.log || true
+          fi
+
+          # Always export to sheets regardless of run result
+          python main.py export-sheet 2>&1 || true
+
+          # Export to CSV as fallback
+          python main.py export-csv 2>&1 || true
+
+      # ── Upload Artifacts ────────────────────────────────────
+      - name: Upload logs & screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-logs-${{ github.run_number }}
+          path: |
+            logs/
+            data/applications_export.csv
+          retention-days: 30
+
+      - name: Upload CSV report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: applications-report-${{ github.run_number }}
+          path: data/applications_export.csv
+          retention-days: 90
+
+      # ── Save State ──────────────────────────────────────────
+      - name: Commit updated database & CSV
+        if: always()
+        run: |
+          git config user.name "Auto Job Applier Bot"
+          git config user.email "bot@auto-job-applier"
+          
+          # Add CSV to repo for easy access  
+          git add data/applications_export.csv 2>/dev/null || true
+          git add data/daily_reports/ 2>/dev/null || true
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update application report $(TZ='Asia/Kolkata' date +%Y-%m-%d)" || true
+            git push || true
+          fi
+
+      # ── Notify ──────────────────────────────────────────────
+      - name: Send Telegram notification
+        if: always() && secrets.TELEGRAM_BOT_TOKEN != ''
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          STATUS="${{ job.status }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          if [ "${STATUS}" = "success" ]; then
+            EMOJI="✅"
+          else
+            EMOJI="⚠️"
+          fi
+          
+          MSG="${EMOJI} *Auto Job Applier*
+          Status: ${STATUS}
+          Time: $(TZ='Asia/Kolkata' date '+%Y-%m-%d %H:%M IST')
+          [View Run](${RUN_URL})"
+          
+          curl -s -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="${MSG}" \
+            -d parse_mode="Markdown" || true

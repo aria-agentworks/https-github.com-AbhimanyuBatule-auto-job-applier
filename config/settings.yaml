@@ -142,3 +142,17 @@ logging:
   max_file_size_mb: 10
   backup_count: 5
   format: "%(asctime)s | %(levelname)-8s | %(name)-25s | %(message)s"
+
+# ── Reporting / Google Sheets ──────────────────────────────────
+# Automatically syncs every application to a Google Sheet so you
+# can see what was applied, when, status, match score, etc.
+reporting:
+  google_sheets:
+    enabled: true
+    sheet_id: ""  # The ID from your Google Sheet URL (or GOOGLE_SHEET_ID env var)
+    # Service account creds JSON at: data/google_sheets_creds.json
+    # See README for setup instructions
+  csv:
+    enabled: true  # Always export CSV as fallback
+    path: "data/applications_export.csv"
+    daily_reports_dir: "data/daily_reports"

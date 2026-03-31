@@ -152,6 +152,62 @@ def schedule():
 
 
 @cli.command()
+def export_cookies():
+    """Export browser cookies for GitHub Actions (CI/CD)."""
+    console.print("[bold cyan]Exporting browser cookies...[/]")
+    console.print("This captures your login sessions for headless runs.\n")
+
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        await orchestrator.export_cookies()
+
+    asyncio.run(_run())
+    console.print("\n[bold green]Done! See instructions above to set as GitHub Secret.[/]")
+
+
+@cli.command()
+def export_sheet():
+    """Sync all application data to Google Sheets."""
+    console.print("[bold cyan]Syncing to Google Sheets...[/]")
+
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        await orchestrator.export_to_sheets()
+
+    asyncio.run(_run())
+    console.print("[bold green]Google Sheets sync complete.[/]")
+
+
+@cli.command()
+def export_csv():
+    """Export all applications to CSV file."""
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        path = await orchestrator.export_to_csv()
+        if path:
+            console.print(f"[bold green]CSV exported: {path}[/]")
+        else:
+            console.print("[yellow]No data to export yet.[/]")
+
+    asyncio.run(_run())
+
+
+@cli.command()
 def setup():
     """Interactive setup wizard."""
     console.print(Panel(BANNER, border_style="cyan"))
@@ -293,10 +349,26 @@ def _setup_wizard():
     console.print("4. Place your resume PDF in [cyan]data/resume.pdf[/]")
     console.print("5. Run [bold green]python main.py login[/] to login to portals")
     console.print("6. Run [bold green]python main.py run[/] to start applying!")
-    console.print("\n[bold]Optional:[/]")
+
+    console.print("\n[bold]GitHub Actions (Fully Automated):[/]")
+    console.print("7. Push repo to GitHub")
+    console.print("8. Run [bold green]python main.py export-cookies[/] to capture login sessions")
+    console.print("9. Add GitHub Secrets: GEMINI_API_KEY, BROWSER_COOKIES")
+    console.print("10. The cron workflow runs at 9 AM & 3 PM IST daily, zero intervention")
+
+    console.print("\n[bold]Google Sheets Dashboard (Optional):[/]")
+    console.print("11. Create a Google Cloud service account (free)")
+    console.print("12. Enable Google Sheets API, download creds JSON")
+    console.print("13. Base64 encode it: [dim]base64 < creds.json[/]")
+    console.print("14. Add GitHub Secret: GOOGLE_SHEETS_CREDS (base64 string)")
+    console.print("15. Create a Google Sheet, share with service account email")
+    console.print("16. Add GitHub Secret: GOOGLE_SHEET_ID (from sheet URL)")
+
+    console.print("\n[bold]Other Options:[/]")
+    console.print("• [bold green]python main.py export-csv[/]  — Export to CSV anytime")
+    console.print("• [bold green]python main.py export-sheet[/] — Sync to Google Sheets")
+    console.print("• [bold green]python main.py stats[/]        — View terminal dashboard")
     console.print("• Set up Telegram notifications for daily reports")
-    console.print("• Add company career page URLs in settings.yaml")
-    console.print("• Run [bold green]python main.py schedule[/] for automatic daily runs")
 
 
 if __name__ == "__main__":

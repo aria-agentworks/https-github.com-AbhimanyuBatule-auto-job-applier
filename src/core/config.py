@@ -69,6 +69,7 @@ class Config:
             "TELEGRAM_BOT_TOKEN": ("notifications", "telegram", "bot_token"),
             "TELEGRAM_CHAT_ID": ("notifications", "telegram", "chat_id"),
             "SMTP_PASSWORD": ("notifications", "email", "sender_password"),
+            "GOOGLE_SHEET_ID": ("reporting", "google_sheets", "sheet_id"),
         }
         for env_var, path in env_map.items():
             value = os.environ.get(env_var)

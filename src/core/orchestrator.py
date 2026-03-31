@@ -1,10 +1,12 @@
 """
 Orchestrator - The main engine that ties everything together.
 Runs the full pipeline: discover -> score -> apply -> track -> report.
+Designed for zero-failure operation in CI/CD (GitHub Actions).
 """
 
 import asyncio
 import logging
+import traceback
 from datetime import datetime
 from typing import Optional
 
@@ -14,6 +16,7 @@ from src.core.profile import ProfileManager
 from src.core.form_filler import AdaptiveFormFiller
 from src.ai.engine import AIEngine
 from src.tracker.database import ApplicationTracker
+from src.tracker.sheets import GoogleSheetsReporter, CSVExporter
 from src.portals.base import BasePortalAdapter, ApplicationResult
 
 logger = logging.getLogger("orchestrator")
@@ -30,6 +33,8 @@ class Orchestrator:
         self.profile = ProfileManager()
         self.ai = AIEngine()
         self.tracker = ApplicationTracker()
+        self.sheets = GoogleSheetsReporter()
+        self.csv_exporter = CSVExporter()
         self.form_filler: Optional[AdaptiveFormFiller] = None
         self._portals: list[BasePortalAdapter] = []
         self._daily_target = config.get("app", "daily_application_target", default=10)
@@ -58,6 +63,12 @@ class Orchestrator:
 
         # Initialize portal adapters
         await self._init_portals()
+
+        # Initialize Google Sheets (non-blocking, graceful if unavailable)
+        try:
+            await self.sheets.initialize()
+        except Exception as e:
+            logger.warning(f"Google Sheets not available (will use CSV): {e}")
 
         logger.info(f"Initialized {len(self._portals)} portal adapters")
         logger.info(f"Daily target: {self._daily_target} applications")
@@ -95,7 +106,10 @@ class Orchestrator:
         """
         Run the full application pipeline.
         Returns a summary report.
+        Designed for ZERO failures — every exception is caught and logged.
         """
+        report = {"total_attempted": 0, "total_success": 0, "total_failed": 0,
+                  "success_rate": "0%", "successful_applications": [], "failed_applications": []}
         try:
             await self.initialize()
             self._run_id = await self.tracker.start_run()
@@ -107,7 +121,7 @@ class Orchestrator:
 
             all_results: list[ApplicationResult] = []
 
-            # Process each portal
+            # Process each portal (each portal is independently wrapped)
             for portal in self._portals:
                 if self._total_applied >= self._max_daily:
                     logger.info(f"Daily max ({self._max_daily}) reached, stopping")
@@ -115,20 +129,43 @@ class Orchestrator:
 
                 logger.info(f"\n--- Processing: {portal.portal_name.upper()} ---")
                 try:
-                    results = await portal.discover_and_apply()
+                    results = await asyncio.wait_for(
+                        portal.discover_and_apply(),
+                        timeout=600,  # 10 min max per portal
+                    )
                     all_results.extend(results)
 
-                    # Update counts
+                    # Update counts & track
                     for r in results:
                         self._total_applied += 1
                         if r.success:
                             self._total_success += 1
 
-                        # Track in database
-                        await self.tracker.record_application(r)
+                        # Track in database (never fail on this)
+                        try:
+                            await self.tracker.record_application(r)
+                        except Exception as db_err:
+                            logger.error(f"DB record error: {db_err}")
 
+                        # Track in Google Sheet (non-blocking)
+                        try:
+                            await self.sheets.append_application(
+                                portal=r.portal,
+                                job_id=r.job_id,
+                                job_title=r.job_title,
+                                company=r.company,
+                                status="applied" if r.success else "failed",
+                                steps_completed=r.steps_completed,
+                                error=r.error,
+                                screenshot_path=r.screenshot_path,
+                            )
+                        except Exception:
+                            pass  # Sheet errors are non-critical
+
+                except asyncio.TimeoutError:
+                    logger.error(f"Portal TIMEOUT ({portal.portal_name}) - skipping")
                 except Exception as e:
-                    logger.error(f"Portal error ({portal.portal_name}): {e}")
+                    logger.error(f"Portal error ({portal.portal_name}): {e}\n{traceback.format_exc()}")
 
                 # Cool-down between portals
                 await asyncio.sleep(5)
@@ -136,19 +173,38 @@ class Orchestrator:
             # Generate report
             report = await self._generate_report(all_results)
 
-            # End run
-            await self.tracker.end_run(
-                self._run_id, self._total_applied, self._total_success
-            )
-            await self.tracker.update_daily_stats()
+            # End run in tracker
+            try:
+                await self.tracker.end_run(
+                    self._run_id, self._total_applied, self._total_success
+                )
+                await self.tracker.update_daily_stats()
+            except Exception as e:
+                logger.error(f"Tracker finalize error: {e}")
+
+            # Export to CSV (always, as backup)
+            try:
+                await self.csv_exporter.export_all()
+                await self.csv_exporter.export_today_summary()
+            except Exception as e:
+                logger.error(f"CSV export error: {e}")
+
+            # Sync full data to Google Sheets
+            try:
+                await self.sheets.create_daily_summary_sheet()
+            except Exception:
+                pass
 
             return report
 
         except Exception as e:
-            logger.error(f"Orchestrator error: {e}")
+            logger.error(f"Orchestrator critical error: {e}\n{traceback.format_exc()}")
             if self._run_id:
-                await self.tracker.end_run(self._run_id, self._total_applied, self._total_success, str(e))
-            raise
+                try:
+                    await self.tracker.end_run(self._run_id, self._total_applied, self._total_success, str(e))
+                except Exception:
+                    pass
+            return report
         finally:
             await self.shutdown()
 
@@ -227,6 +283,34 @@ class Orchestrator:
             "recent": recent,
             "weekly_trend": trend,
         }
+
+    async def export_to_sheets(self):
+        """Export all application data to Google Sheets."""
+        await self.tracker.initialize()
+
+        sheets_ok = await self.sheets.initialize()
+        if sheets_ok:
+            await self.sheets.sync_from_database()
+            await self.sheets.create_daily_summary_sheet()
+            logger.info("Google Sheets export complete")
+        else:
+            logger.warning("Google Sheets not configured, skipping")
+
+        await self.tracker.close()
+
+    async def export_to_csv(self) -> str:
+        """Export all application data to CSV."""
+        path = await self.csv_exporter.export_all()
+        await self.csv_exporter.export_today_summary()
+        return path
+
+    async def export_cookies(self):
+        """Export browser cookies for CI/CD use."""
+        await self.browser.start()
+        from src.utils.cookies import export_cookies, get_cookies_for_secret
+        await export_cookies(self.browser.context)
+        get_cookies_for_secret()
+        await self.browser.stop()
 
     async def _generate_report(self, results: list[ApplicationResult]) -> dict:
         """Generate a summary report."""

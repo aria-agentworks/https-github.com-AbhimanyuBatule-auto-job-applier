@@ -28,10 +28,16 @@ data/resume.docx
 data/resume.txt
 data/browser_profile/
 data/applications.db
+data/cookies.json
+data/google_sheets_creds.json
 
 # ===== Logs & Screenshots =====
 logs/
 *.log
+
+# ===== Reports (keep CSV in repo for GHA) =====
+# data/applications_export.csv   # intentionally tracked
+data/daily_reports/
 
 # ===== OS =====
 .DS_Store
