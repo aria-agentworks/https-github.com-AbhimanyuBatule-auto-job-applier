@@ -54,6 +54,9 @@ class BrowserManager:
         self._viewport_h = config.get("browser", "viewport_height", default=1080)
         self._screenshot_dir = PROJECT_ROOT / "logs" / "screenshots"
         self._screenshot_dir.mkdir(parents=True, exist_ok=True)
+        self._max_screenshots = config.get("browser", "max_screenshots", default=200)
+        self._geo_lat = config.get("browser", "geolocation_lat", default=18.5204)
+        self._geo_lon = config.get("browser", "geolocation_lon", default=73.8567)
 
     async def start(self):
         """Launch browser with anti-detection measures."""
@@ -78,7 +81,7 @@ class BrowserManager:
             accept_downloads=True,
             # Permissions
             permissions=["geolocation"],
-            geolocation={"latitude": 18.5204, "longitude": 73.8567},  # Pune
+            geolocation={"latitude": self._geo_lat, "longitude": self._geo_lon},
         )
 
         # Apply stealth scripts
@@ -107,10 +110,47 @@ class BrowserManager:
                 await refresh_cookies(self._context)
             except Exception as e:
                 logger.debug(f"Cookie refresh on stop: {e}")
-            await self._context.close()
+            try:
+                await self._context.close()
+            except Exception:
+                pass
+            self._context = None
         if self._playwright:
-            await self._playwright.stop()
+            try:
+                await self._playwright.stop()
+            except Exception:
+                pass
+            self._playwright = None
+        self._page = None
         logger.info("Browser stopped")
+
+    def is_alive(self) -> bool:
+        """Check if the browser is still functioning."""
+        try:
+            return (
+                self._context is not None
+                and self._page is not None
+                and not self._page.is_closed()
+            )
+        except Exception:
+            return False
+
+    async def restart(self):
+        """Restart the browser (for crash recovery between portals)."""
+        logger.info("Restarting browser...")
+        try:
+            await self.stop()
+        except Exception as e:
+            logger.debug(f"Error during stop in restart: {e}")
+        await asyncio.sleep(1)
+        await self.start()
+        logger.info("Browser restarted successfully")
+
+    async def ensure_alive(self):
+        """Ensure browser is alive; restart if crashed."""
+        if not self.is_alive():
+            logger.warning("Browser appears dead, restarting...")
+            await self.restart()
 
     @property
     def page(self) -> Optional[Page]:
@@ -319,7 +359,24 @@ class BrowserManager:
         filepath = self._screenshot_dir / filename
         await self._page.screenshot(path=str(filepath), full_page=full_page)
         logger.debug(f"Screenshot saved: {filepath}")
+
+        # Cleanup old screenshots (keep last N)
+        self._cleanup_screenshots()
+
         return str(filepath)
+
+    def _cleanup_screenshots(self):
+        """Remove old screenshots, keeping only the most recent ones."""
+        try:
+            screenshots = sorted(
+                self._screenshot_dir.glob("*.png"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            for old in screenshots[self._max_screenshots:]:
+                old.unlink(missing_ok=True)
+        except Exception as e:
+            logger.debug(f"Screenshot cleanup error: {e}")
 
     # ── Anti-Detection ──────────────────────────────────────────
 

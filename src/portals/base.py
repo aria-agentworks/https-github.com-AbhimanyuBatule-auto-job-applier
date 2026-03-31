@@ -15,6 +15,11 @@ from src.core.form_filler import AdaptiveFormFiller
 from src.ai.engine import AIEngine
 from src.core.config import config
 
+# TYPE_CHECKING import to avoid circular imports
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.tracker.database import ApplicationTracker
+
 logger = logging.getLogger("portals.base")
 
 
@@ -71,11 +76,13 @@ class BasePortalAdapter(ABC):
         profile: ProfileManager,
         ai: AIEngine,
         form_filler: AdaptiveFormFiller,
+        tracker: "ApplicationTracker | None" = None,
     ):
         self.browser = browser
         self.profile = profile
         self.ai = ai
         self.form_filler = form_filler
+        self.tracker = tracker
         self.portal_name = self.__class__.__name__.replace("Adapter", "").lower()
         self._config = config.get_portal_config(self.portal_name)
         self._max_daily = self._config.get("max_applications_per_day", 5)
@@ -166,6 +173,27 @@ class BasePortalAdapter(ABC):
             if job.job_id not in seen_ids:
                 seen_ids.add(job.job_id)
                 unique_jobs.append(job)
+
+        # Filter out already-applied jobs using tracker
+        if self.tracker:
+            new_jobs = []
+            for job in unique_jobs:
+                try:
+                    already = await self.tracker.is_already_applied(self.portal_name, job.job_id)
+                    if already:
+                        logger.debug(f"Skipping already-applied: {job.title} at {job.company}")
+                    else:
+                        new_jobs.append(job)
+                        # Record the job listing in the DB
+                        try:
+                            await self.tracker.record_job_listing(job.__dict__)
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.debug(f"Dedup check error: {e}")
+                    new_jobs.append(job)  # Keep if check fails
+            logger.info(f"Filtered {len(unique_jobs) - len(new_jobs)} already-applied jobs")
+            unique_jobs = new_jobs
 
         logger.info(f"Found {len(unique_jobs)} unique jobs on {self.portal_name}")
 

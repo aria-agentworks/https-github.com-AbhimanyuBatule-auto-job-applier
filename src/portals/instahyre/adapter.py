@@ -85,7 +85,7 @@ class InstahyreAdapter(BasePortalAdapter):
                     if href and not href.startswith("http"):
                         href = f"https://www.instahyre.com{href}"
 
-                    job_id = hashlib.md5(f"{title}{company}".encode()).hexdigest()[:12]
+                    job_id = hashlib.md5(f"{title}{company}{href}".encode()).hexdigest()[:12]
                     jobs.append(JobListing(
                         portal="instahyre",
                         job_id=f"ih_{job_id}",

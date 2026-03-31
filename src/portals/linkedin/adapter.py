@@ -332,7 +332,7 @@ class LinkedInAdapter(BasePortalAdapter):
                     href = f"https://www.linkedin.com{href}"
 
             if not job_id:
-                job_id = hashlib.md5(f"{title}{company}".encode()).hexdigest()[:12]
+                job_id = hashlib.md5(f"{title}{company}{href}".encode()).hexdigest()[:12]
 
             # Check for Easy Apply badge
             easy_apply = await card.query_selector('[data-is-easy-apply], .job-card-container__easy-apply-text')

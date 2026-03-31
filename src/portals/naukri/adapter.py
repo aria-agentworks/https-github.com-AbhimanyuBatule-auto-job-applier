@@ -321,7 +321,15 @@ class NaukriAdapter(BasePortalAdapter):
             if not title:
                 return None
 
-            job_id = hashlib.md5(f"{title}{company}".encode()).hexdigest()[:12]
+            # Try to extract numeric ID from URL, fall back to hash with href
+            import re as _re
+            job_id = ""
+            if href:
+                match = _re.search(r'/(\d{6,})', href)
+                if match:
+                    job_id = match.group(1)
+            if not job_id:
+                job_id = hashlib.md5(f"{title}{company}{href}".encode()).hexdigest()[:12]
 
             return JobListing(
                 portal="naukri",

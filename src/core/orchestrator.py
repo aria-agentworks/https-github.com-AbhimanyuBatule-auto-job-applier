@@ -95,6 +95,7 @@ class Orchestrator:
                 profile=self.profile,
                 ai=self.ai,
                 form_filler=self.form_filler,
+                tracker=self.tracker,
             )
             if adapter.is_enabled:
                 self._portals.append(adapter)
@@ -137,8 +138,8 @@ class Orchestrator:
 
                     # Update counts & track
                     for r in results:
-                        self._total_applied += 1
                         if r.success:
+                            self._total_applied += 1
                             self._total_success += 1
 
                         # Track in database (never fail on this)
@@ -167,8 +168,13 @@ class Orchestrator:
                 except Exception as e:
                     logger.error(f"Portal error ({portal.portal_name}): {e}\n{traceback.format_exc()}")
 
-                # Cool-down between portals
+                # Cool-down between portals + ensure browser is alive
                 await asyncio.sleep(5)
+                try:
+                    await self.browser.ensure_alive()
+                except Exception as e:
+                    logger.error(f"Browser recovery failed: {e}")
+                    break  # Can't continue without browser
 
             # Generate report
             report = await self._generate_report(all_results)
@@ -210,45 +216,80 @@ class Orchestrator:
 
     async def run_single_portal(self, portal_name: str) -> dict:
         """Run the pipeline for a single portal only."""
-        await self.initialize()
+        try:
+            await self.initialize()
 
-        portal = next((p for p in self._portals if p.portal_name == portal_name), None)
-        if not portal:
-            return {"error": f"Portal '{portal_name}' not found or not enabled"}
+            portal = next((p for p in self._portals if p.portal_name == portal_name), None)
+            if not portal:
+                return {"error": f"Portal '{portal_name}' not found or not enabled"}
 
-        results = await portal.discover_and_apply()
+            results = await asyncio.wait_for(
+                portal.discover_and_apply(),
+                timeout=600,
+            )
 
-        for r in results:
-            await self.tracker.record_application(r)
+            for r in results:
+                try:
+                    await self.tracker.record_application(r)
+                except Exception as e:
+                    logger.error(f"DB record error: {e}")
 
-        report = await self._generate_report(results)
-        await self.shutdown()
-        return report
+            return await self._generate_report(results)
+        except asyncio.TimeoutError:
+            logger.error(f"Portal TIMEOUT ({portal_name})")
+            return {"error": f"Portal '{portal_name}' timed out"}
+        except Exception as e:
+            logger.error(f"run_single_portal error: {e}\n{traceback.format_exc()}")
+            return {"error": str(e)}
+        finally:
+            await self.shutdown()
 
     async def apply_to_urls(self, urls: list[str]) -> dict:
         """Apply to a list of direct URLs."""
-        await self.initialize()
+        try:
+            await self.initialize()
 
-        from src.portals.generic_career_page.adapter import GenericCareerPageAdapter
+            from src.portals.generic_career_page.adapter import GenericCareerPageAdapter
 
-        generic = GenericCareerPageAdapter(
-            browser=self.browser,
-            profile=self.profile,
-            ai=self.ai,
-            form_filler=self.form_filler,
-        )
+            generic = GenericCareerPageAdapter(
+                browser=self.browser,
+                profile=self.profile,
+                ai=self.ai,
+                form_filler=self.form_filler,
+                tracker=self.tracker,
+            )
 
-        results = []
-        for url in urls:
-            logger.info(f"\nApplying to: {url}")
-            result = await generic.apply_to_url(url)
-            results.append(result)
-            await self.tracker.record_application(result)
-            await asyncio.sleep(3)
+            results = []
+            for url in urls:
+                logger.info(f"\nApplying to: {url}")
+                try:
+                    result = await asyncio.wait_for(
+                        generic.apply_to_url(url),
+                        timeout=300,  # 5 min per URL
+                    )
+                    results.append(result)
+                    try:
+                        await self.tracker.record_application(result)
+                    except Exception as e:
+                        logger.error(f"DB record error: {e}")
+                except asyncio.TimeoutError:
+                    logger.error(f"URL application timed out: {url}")
+                    results.append(ApplicationResult(
+                        success=False, portal="generic", error=f"Timeout: {url}"
+                    ))
+                except Exception as e:
+                    logger.error(f"URL application error: {url} - {e}")
+                    results.append(ApplicationResult(
+                        success=False, portal="generic", error=str(e)
+                    ))
+                await asyncio.sleep(3)
 
-        report = await self._generate_report(results)
-        await self.shutdown()
-        return report
+            return await self._generate_report(results)
+        except Exception as e:
+            logger.error(f"apply_to_urls error: {e}\n{traceback.format_exc()}")
+            return {"error": str(e)}
+        finally:
+            await self.shutdown()
 
     async def login_to_portals(self):
         """Interactive login to all enabled portals (for first-time setup)."""

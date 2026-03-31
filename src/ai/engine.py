@@ -17,6 +17,8 @@ import logging
 from typing import Optional
 from pathlib import Path
 
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
 from src.core.config import config
 
 logger = logging.getLogger("ai.engine")
@@ -130,20 +132,52 @@ class AIEngine:
     async def _call_ai(self, prompt: str, system_prompt: str = "", image_path: str = None) -> str:
         """
         Send a prompt to the AI provider and return the response.
-        Handles rate limiting and retries.
+        Handles rate limiting, retries with exponential backoff, and provider fallback.
         """
         await self.initialize()
         await self._rate_limiter.acquire()
 
+        # Build ordered provider fallback chain
+        providers = [self._provider]
+        for p in ["gemini", "groq", "ollama"]:
+            if p != self._provider:
+                providers.append(p)
+
+        last_error = None
+        for provider in providers:
+            try:
+                return await self._call_with_retry(provider, prompt, system_prompt, image_path)
+            except Exception as e:
+                last_error = e
+                if provider == self._provider:
+                    logger.warning(f"Primary AI provider ({provider}) failed: {e}. Trying fallback...")
+                else:
+                    logger.warning(f"Fallback provider ({provider}) also failed: {e}")
+
+        raise RuntimeError(f"All AI providers failed. Last error: {last_error}")
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        reraise=True,
+    )
+    async def _call_with_retry(self, provider: str, prompt: str, system_prompt: str = "", image_path: str = None) -> str:
+        """Call a specific provider with tenacity retry."""
         try:
-            if self._provider == "gemini":
+            if provider == "gemini":
+                if not self._model:
+                    await self._init_gemini()
                 return await self._call_gemini(prompt, system_prompt, image_path)
-            elif self._provider == "ollama":
+            elif provider == "ollama":
+                if not hasattr(self, '_ollama_url'):
+                    await self._init_ollama()
                 return await self._call_ollama(prompt, system_prompt)
-            elif self._provider == "groq":
+            elif provider == "groq":
+                if not hasattr(self, '_groq_api_key'):
+                    await self._init_groq()
                 return await self._call_groq(prompt, system_prompt)
         except Exception as e:
-            logger.error(f"AI call failed: {e}")
+            logger.error(f"AI call to {provider} failed (will retry): {e}")
             raise
 
     async def _call_gemini(self, prompt: str, system_prompt: str = "", image_path: str = None) -> str:

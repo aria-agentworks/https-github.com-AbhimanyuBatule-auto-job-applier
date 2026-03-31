@@ -148,7 +148,7 @@ class WellfoundAdapter(BasePortalAdapter):
             if href and not href.startswith("http"):
                 href = f"https://wellfound.com{href}"
 
-            job_id = hashlib.md5(f"{title}{company}".encode()).hexdigest()[:12]
+            job_id = hashlib.md5(f"{title}{company}{href}".encode()).hexdigest()[:12]
 
             return JobListing(
                 portal="wellfound",

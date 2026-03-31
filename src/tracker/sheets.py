@@ -13,6 +13,7 @@ Uses a Google Service Account (free) to write to a shared Google Sheet.
 Falls back to CSV export if Sheets creds aren't configured.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -103,17 +104,19 @@ class GoogleSheetsReporter:
         """Ensure the first row has headers."""
         try:
             ws = self._sheet.sheet1
-            existing = ws.row_values(1)
+            existing = await asyncio.to_thread(ws.row_values, 1)
             if not existing or existing != HEADERS:
-                ws.update("A1", [HEADERS])
+                await asyncio.to_thread(ws.update, "A1", [HEADERS])
                 # Format header row (bold, frozen)
-                ws.format("A1:M1", {
-                    "textFormat": {"bold": True},
-                    "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.8},
-                    "horizontalAlignment": "CENTER",
-                })
+                await asyncio.to_thread(
+                    ws.format, "A1:M1", {
+                        "textFormat": {"bold": True},
+                        "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.8},
+                        "horizontalAlignment": "CENTER",
+                    }
+                )
                 # Freeze header row
-                ws.freeze(rows=1)
+                await asyncio.to_thread(ws.freeze, rows=1)
                 logger.info("Headers set up on Google Sheet")
         except Exception as e:
             logger.warning(f"Could not set headers: {e}")
@@ -155,7 +158,10 @@ class GoogleSheetsReporter:
         ]
 
         try:
-            self._sheet.sheet1.append_row(row, value_input_option="USER_ENTERED")
+            await asyncio.to_thread(
+                self._sheet.sheet1.append_row, row,
+                value_input_option="USER_ENTERED",
+            )
             logger.debug(f"Sheet row added: {job_title} @ {company}")
         except Exception as e:
             logger.warning(f"Sheet append error: {e}")
@@ -214,20 +220,25 @@ class GoogleSheetsReporter:
 
             # Clear existing data (keep headers) and write fresh
             ws = self._sheet.sheet1
-            ws.clear()
-            ws.update("A1", [HEADERS] + sheet_rows, value_input_option="USER_ENTERED")
+            await asyncio.to_thread(ws.clear)
+            await asyncio.to_thread(
+                ws.update, "A1", [HEADERS] + sheet_rows,
+                value_input_option="USER_ENTERED",
+            )
 
             # Re-apply header formatting
-            ws.format("A1:M1", {
-                "textFormat": {"bold": True},
-                "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.8},
-                "horizontalAlignment": "CENTER",
-            })
-            ws.freeze(rows=1)
+            await asyncio.to_thread(
+                ws.format, "A1:M1", {
+                    "textFormat": {"bold": True},
+                    "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.8},
+                    "horizontalAlignment": "CENTER",
+                }
+            )
+            await asyncio.to_thread(ws.freeze, rows=1)
 
             # Auto-resize columns
             try:
-                ws.columns_auto_resize(0, len(HEADERS) - 1)
+                await asyncio.to_thread(ws.columns_auto_resize, 0, len(HEADERS) - 1)
             except Exception:
                 pass
 
@@ -246,10 +257,11 @@ class GoogleSheetsReporter:
         try:
             # Get or create the summary worksheet
             try:
-                summary_ws = self._sheet.worksheet("Daily Summary")
+                summary_ws = await asyncio.to_thread(self._sheet.worksheet, "Daily Summary")
             except Exception:
-                summary_ws = self._sheet.add_worksheet(
-                    title="Daily Summary", rows=100, cols=10
+                summary_ws = await asyncio.to_thread(
+                    self._sheet.add_worksheet,
+                    title="Daily Summary", rows=100, cols=10,
                 )
 
             import aiosqlite
@@ -291,15 +303,19 @@ class GoogleSheetsReporter:
                     rate, str(r[4] or 0), str(r[5] or 0), str(r[6] or 0),
                 ])
 
-            summary_ws.clear()
-            summary_ws.update("A1", [summary_headers] + summary_data,
-                              value_input_option="USER_ENTERED")
-            summary_ws.format("A1:H1", {
-                "textFormat": {"bold": True},
-                "backgroundColor": {"red": 0.15, "green": 0.65, "blue": 0.35},
-                "horizontalAlignment": "CENTER",
-            })
-            summary_ws.freeze(rows=1)
+            await asyncio.to_thread(summary_ws.clear)
+            await asyncio.to_thread(
+                summary_ws.update, "A1", [summary_headers] + summary_data,
+                value_input_option="USER_ENTERED",
+            )
+            await asyncio.to_thread(
+                summary_ws.format, "A1:H1", {
+                    "textFormat": {"bold": True},
+                    "backgroundColor": {"red": 0.15, "green": 0.65, "blue": 0.35},
+                    "horizontalAlignment": "CENTER",
+                }
+            )
+            await asyncio.to_thread(summary_ws.freeze, rows=1)
 
             logger.info("Daily Summary sheet updated")
 
