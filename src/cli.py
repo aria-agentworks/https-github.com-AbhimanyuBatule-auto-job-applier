@@ -1,0 +1,303 @@
+"""
+Auto Job Applier - CLI Interface
+Rich, interactive command-line interface.
+"""
+
+import asyncio
+import click
+import json
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich import box
+
+console = Console()
+
+BANNER = """
+╔═══════════════════════════════════════════════════════════╗
+║           🚀 AUTO JOB APPLIER v1.0.0 🚀                 ║
+║         Adaptive AI-Powered Job Application Bot          ║
+║                                                          ║
+║  • AI-driven form filling (Google Gemini - Free Tier)    ║
+║  • Multi-portal support (LinkedIn, Naukri, Wellfound...) ║
+║  • Generic career page navigator                         ║
+║  • Smart job matching & scoring                          ║
+║  • Application tracking & reporting                      ║
+╚═══════════════════════════════════════════════════════════╝
+"""
+
+
+@click.group()
+def cli():
+    """Auto Job Applier - Apply to 10+ jobs daily, hands-free."""
+    pass
+
+
+@cli.command()
+def run():
+    """Run the full application pipeline (all enabled portals)."""
+    console.print(Panel(BANNER, border_style="green"))
+    console.print("[bold green]Starting full application run...[/]")
+
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        report = await orchestrator.run()
+        _display_report(report)
+
+    asyncio.run(_run())
+
+
+@cli.command()
+@click.argument("portal")
+def run_portal(portal):
+    """Run the pipeline for a single portal (e.g., linkedin, naukri)."""
+    console.print(f"[bold blue]Running for portal: {portal}[/]")
+
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        report = await orchestrator.run_single_portal(portal)
+        _display_report(report)
+
+    asyncio.run(_run())
+
+
+@cli.command()
+@click.argument("urls", nargs=-1)
+def apply_urls(urls):
+    """Apply to specific career page URLs directly."""
+    if not urls:
+        console.print("[red]Please provide at least one URL[/]")
+        return
+
+    console.print(f"[bold blue]Applying to {len(urls)} URLs...[/]")
+
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        report = await orchestrator.apply_to_urls(list(urls))
+        _display_report(report)
+
+    asyncio.run(_run())
+
+
+@cli.command()
+def login():
+    """Login to all enabled portals (first-time setup)."""
+    console.print("[bold yellow]Starting portal login setup...[/]")
+    console.print("You'll need to login manually to each portal once.")
+    console.print("Sessions will be saved for future automated runs.\n")
+
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        await orchestrator.login_to_portals()
+        await orchestrator.shutdown()
+
+    asyncio.run(_run())
+    console.print("\n[bold green]Login setup complete! Sessions saved.[/]")
+
+
+@cli.command()
+def stats():
+    """Show application statistics and dashboard."""
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.core.orchestrator import Orchestrator
+
+    async def _run():
+        orchestrator = Orchestrator()
+        data = await orchestrator.show_stats()
+        _display_dashboard(data)
+
+    asyncio.run(_run())
+
+
+@cli.command()
+def schedule():
+    """Start the scheduler (runs daily at configured time)."""
+    console.print(Panel(BANNER, border_style="green"))
+    console.print("[bold green]Starting scheduled mode...[/]")
+    console.print("The bot will run automatically at the configured time.\n")
+
+    from src.utils.logging_config import setup_logging
+    setup_logging()
+
+    from src.scheduler.scheduler import JobScheduler
+
+    async def _run():
+        scheduler = JobScheduler()
+        await scheduler.run_scheduled()
+
+    asyncio.run(_run())
+
+
+@cli.command()
+def setup():
+    """Interactive setup wizard."""
+    console.print(Panel(BANNER, border_style="cyan"))
+    _setup_wizard()
+
+
+# ── Display Functions ───────────────────────────────────────────
+
+def _display_report(report: dict):
+    """Display application run report with rich formatting."""
+    console.print("\n")
+
+    # Summary table
+    table = Table(title="Application Run Report", box=box.DOUBLE_EDGE)
+    table.add_column("Metric", style="cyan", width=20)
+    table.add_column("Value", style="bold")
+
+    table.add_row("Total Attempted", str(report.get("total_attempted", 0)))
+    table.add_row("Successful", f"[green]{report.get('total_success', 0)}[/]")
+    table.add_row("Failed", f"[red]{report.get('total_failed', 0)}[/]")
+    table.add_row("Success Rate", report.get("success_rate", "N/A"))
+
+    console.print(table)
+
+    # Successful applications
+    if report.get("successful_applications"):
+        console.print("\n[bold green]✓ Successful Applications:[/]")
+        for app in report["successful_applications"]:
+            console.print(f"  [green]✓[/] {app['job']} @ {app['company']} [dim]({app['portal']})[/]")
+
+    # Failed applications
+    if report.get("failed_applications"):
+        console.print("\n[bold red]✗ Failed Applications:[/]")
+        for app in report["failed_applications"]:
+            console.print(f"  [red]✗[/] {app['job']} @ {app['company']} - [dim]{app['error']}[/]")
+
+
+def _display_dashboard(data: dict):
+    """Display the statistics dashboard."""
+    console.print(Panel(BANNER, border_style="blue"))
+
+    # Today's stats
+    today = data.get("today", {})
+    today_table = Table(title="Today's Stats", box=box.ROUNDED)
+    today_table.add_column("Metric", style="cyan")
+    today_table.add_column("Count", style="bold", justify="center")
+    today_table.add_row("Total Applications", str(today.get("total", 0)))
+    today_table.add_row("Successful", f"[green]{today.get('success', 0)}[/]")
+    today_table.add_row("Failed", f"[red]{today.get('failed', 0)}[/]")
+    console.print(today_table)
+
+    # All-time stats
+    total = data.get("total", {})
+    total_table = Table(title="\nAll-Time Stats", box=box.ROUNDED)
+    total_table.add_column("Metric", style="cyan")
+    total_table.add_column("Count", style="bold", justify="center")
+    total_table.add_row("Total Applications", str(total.get("total", 0)))
+    total_table.add_row("Successful", f"[green]{total.get('success', 0)}[/]")
+    total_table.add_row("Failed", f"[red]{total.get('failed', 0)}[/]")
+    total_table.add_row("Unique Companies", str(total.get("unique_companies", 0)))
+    total_table.add_row("Portals Used", str(total.get("portals_used", 0)))
+    console.print(total_table)
+
+    # Portal breakdown
+    portal_stats = data.get("portal_stats", [])
+    if portal_stats:
+        portal_table = Table(title="\nPer-Portal Stats", box=box.ROUNDED)
+        portal_table.add_column("Portal", style="cyan")
+        portal_table.add_column("Total", justify="center")
+        portal_table.add_column("Success", justify="center", style="green")
+        portal_table.add_column("Failed", justify="center", style="red")
+        for ps in portal_stats:
+            portal_table.add_row(
+                ps["portal"].capitalize(),
+                str(ps["total"]),
+                str(ps["success"]),
+                str(ps["failed"]),
+            )
+        console.print(portal_table)
+
+    # Weekly trend
+    trend = data.get("weekly_trend", [])
+    if trend:
+        trend_table = Table(title="\nWeekly Trend", box=box.ROUNDED)
+        trend_table.add_column("Date", style="cyan")
+        trend_table.add_column("Total", justify="center")
+        trend_table.add_column("Success", justify="center", style="green")
+        for day in trend:
+            trend_table.add_row(day["date"], str(day["total"]), str(day["success"]))
+        console.print(trend_table)
+
+    # Recent applications
+    recent = data.get("recent", [])
+    if recent:
+        recent_table = Table(title="\nRecent Applications", box=box.ROUNDED)
+        recent_table.add_column("Time", style="dim", width=20)
+        recent_table.add_column("Portal", style="cyan", width=12)
+        recent_table.add_column("Job Title", width=30)
+        recent_table.add_column("Company", width=20)
+        recent_table.add_column("Status", width=10)
+        for r in recent:
+            status = "[green]Applied[/]" if r["status"] == "applied" else "[red]Failed[/]"
+            recent_table.add_row(
+                r["applied_at"][:19] if r["applied_at"] else "",
+                r["portal"].capitalize(),
+                r["job_title"],
+                r["company"],
+                status,
+            )
+        console.print(recent_table)
+
+
+def _setup_wizard():
+    """Interactive setup wizard."""
+    from src.core.config import CONFIG_DIR
+
+    console.print("\n[bold cyan]SETUP WIZARD[/]\n")
+    console.print("Let's configure your Auto Job Applier.\n")
+
+    # Check profile
+    profile_path = CONFIG_DIR / "profile.yaml"
+    if profile_path.exists():
+        console.print("[green]✓[/] Profile config found: config/profile.yaml")
+        console.print("  [dim]Edit this file with your details[/]")
+    else:
+        console.print("[red]✗[/] Profile config missing!")
+
+    # Check API key
+    settings_path = CONFIG_DIR / "settings.yaml"
+    if settings_path.exists():
+        console.print("[green]✓[/] Settings config found: config/settings.yaml")
+    else:
+        console.print("[red]✗[/] Settings config missing!")
+
+    console.print("\n[bold]Required Steps:[/]")
+    console.print("1. Edit [cyan]config/profile.yaml[/] with your personal details")
+    console.print("2. Get a free Gemini API key from [link]https://aistudio.google.com/app/apikey[/link]")
+    console.print("3. Set the API key in [cyan]config/settings.yaml[/] or [cyan]GEMINI_API_KEY[/] env var")
+    console.print("4. Place your resume PDF in [cyan]data/resume.pdf[/]")
+    console.print("5. Run [bold green]python main.py login[/] to login to portals")
+    console.print("6. Run [bold green]python main.py run[/] to start applying!")
+    console.print("\n[bold]Optional:[/]")
+    console.print("• Set up Telegram notifications for daily reports")
+    console.print("• Add company career page URLs in settings.yaml")
+    console.print("• Run [bold green]python main.py schedule[/] for automatic daily runs")
+
+
+if __name__ == "__main__":
+    cli()
