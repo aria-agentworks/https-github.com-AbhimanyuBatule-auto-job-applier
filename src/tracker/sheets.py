@@ -83,8 +83,8 @@ class GoogleSheetsReporter:
             creds = Credentials.from_service_account_file(
                 str(self._creds_path), scopes=scopes
             )
-            self._client = gspread.authorize(creds)
-            self._sheet = self._client.open_by_key(self._sheet_id)
+            self._client = await asyncio.to_thread(gspread.authorize, creds)
+            self._sheet = await asyncio.to_thread(self._client.open_by_key, self._sheet_id)
             self._available = True
 
             # Ensure headers exist on the main worksheet

@@ -110,14 +110,20 @@ class ApplicationTracker:
     # ── Application Tracking ────────────────────────────────────
 
     async def record_application(self, result: ApplicationResult, job: JobListing = None) -> int:
-        """Record an application attempt."""
+        """Record an application attempt. Increments attempts on conflict."""
         try:
             await self._db.execute(
-                """INSERT OR REPLACE INTO applications 
+                """INSERT INTO applications 
                    (portal, job_id, job_title, company, location, salary_range, 
                     job_url, match_score, status, steps_completed, error_message, 
                     screenshot_path, applied_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(portal, job_id) DO UPDATE SET
+                    status = excluded.status,
+                    steps_completed = excluded.steps_completed,
+                    error_message = excluded.error_message,
+                    screenshot_path = excluded.screenshot_path,
+                    updated_at = CURRENT_TIMESTAMP""",
                 (
                     result.portal,
                     result.job_id,
@@ -292,6 +298,17 @@ class ApplicationTracker:
         today = datetime.now().strftime("%Y-%m-%d")
         stats = await self.get_today_stats()
 
+        # Count discovered jobs for today
+        discovered = 0
+        try:
+            async with self._db.execute(
+                "SELECT COUNT(*) FROM job_listings WHERE DATE(discovered_at) = ?", (today,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                discovered = row[0] if row else 0
+        except Exception:
+            pass
+
         async with self._db.execute(
             "SELECT id FROM daily_stats WHERE date = ?", (today,)
         ) as cursor:
@@ -302,13 +319,13 @@ class ApplicationTracker:
                 """UPDATE daily_stats SET 
                    total_discovered=?, total_applied=?, total_success=?, total_failed=?
                    WHERE date=?""",
-                (0, stats["total"], stats["success"], stats["failed"], today),
+                (discovered, stats["total"], stats["success"], stats["failed"], today),
             )
         else:
             await self._db.execute(
-                """INSERT INTO daily_stats (date, total_applied, total_success, total_failed)
-                   VALUES (?, ?, ?, ?)""",
-                (today, stats["total"], stats["success"], stats["failed"]),
+                """INSERT INTO daily_stats (date, total_discovered, total_applied, total_success, total_failed)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (today, discovered, stats["total"], stats["success"], stats["failed"]),
             )
 
         await self._db.commit()

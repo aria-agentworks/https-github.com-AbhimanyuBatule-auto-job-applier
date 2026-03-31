@@ -87,27 +87,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: data/applications.db
-          key: applications-db-${{ github.run_number }}
+          key: applications-db-${{ hashFiles('data/applications.db') }}
           restore-keys: |
             applications-db-
 
       # ── Configure ───────────────────────────────────────────
       - name: Set up environment
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SHEETS_CREDS_B64: ${{ secrets.GOOGLE_SHEETS_CREDS }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          # Create .env file from secrets
-          cat > .env << EOF
-          GEMINI_API_KEY=${GEMINI_API_KEY}
-          TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-          TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
-          GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
-          EOF
-
           # Decode Google Sheets service account credentials
           if [ -n "${GOOGLE_SHEETS_CREDS_B64}" ]; then
             echo "${GOOGLE_SHEETS_CREDS_B64}" | base64 -d > data/google_sheets_creds.json
@@ -119,6 +107,8 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CI: 'true'
           HEADLESS: 'true'
         run: |

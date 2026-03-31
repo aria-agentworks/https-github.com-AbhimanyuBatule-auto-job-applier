@@ -186,7 +186,7 @@ class BasePortalAdapter(ABC):
                         new_jobs.append(job)
                         # Record the job listing in the DB
                         try:
-                            await self.tracker.record_job_listing(job.__dict__)
+                            await self.tracker.record_job_listing(job)
                         except Exception:
                             pass
                 except Exception as e:
@@ -196,6 +196,27 @@ class BasePortalAdapter(ABC):
             unique_jobs = new_jobs
 
         logger.info(f"Found {len(unique_jobs)} unique jobs on {self.portal_name}")
+
+        # Pre-filter: keyword blacklist + company blacklist (saves AI calls)
+        exclude_keywords = [kw.lower() for kw in self.profile.get_exclude_keywords()]
+        blacklisted_companies = [
+            c.lower() for c in config.get("app", "blacklist_companies", default=[])
+        ]
+        if exclude_keywords or blacklisted_companies:
+            filtered = []
+            for job in unique_jobs:
+                title_lower = job.title.lower()
+                company_lower = job.company.lower()
+                if any(kw in title_lower for kw in exclude_keywords):
+                    logger.debug(f"Filtered by keyword: {job.title}")
+                    continue
+                if any(c == company_lower for c in blacklisted_companies):
+                    logger.debug(f"Filtered by company blacklist: {job.company}")
+                    continue
+                filtered.append(job)
+            if len(unique_jobs) != len(filtered):
+                logger.info(f"Pre-filtered {len(unique_jobs) - len(filtered)} jobs by blacklist/keywords")
+            unique_jobs = filtered
 
         # Filter and score jobs using AI
         scored_jobs = await self._score_jobs(unique_jobs)

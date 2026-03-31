@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv
+
+# Load .env file before anything else reads environment variables
+load_dotenv()
 
 
 # ── Resolve project root ──────────────────────────────────────────
@@ -59,6 +63,43 @@ class Config:
 
         # Override with environment variables
         self._apply_env_overrides()
+
+        # Validate critical configuration
+        self._validate()
+
+    def _validate(self):
+        """Validate critical configuration at startup. Warns but doesn't crash."""
+        warnings = []
+
+        # Check AI provider has a key
+        provider = self.get("ai", "provider", default="gemini")
+        if provider == "gemini" and not self.get("ai", "gemini", "api_key"):
+            warnings.append(
+                "Gemini API key not set. Set GEMINI_API_KEY env var or ai.gemini.api_key in settings.yaml. "
+                "Get a free key at https://aistudio.google.com/app/apikey"
+            )
+
+        # Check at least one portal is enabled
+        portals = self._settings.get("portals", {})
+        enabled = [name for name, cfg in portals.items() if isinstance(cfg, dict) and cfg.get("enabled")]
+        if not enabled:
+            warnings.append("No portals are enabled. Enable at least one portal in config/settings.yaml")
+
+        # Check profile has essential fields
+        personal = self._profile.get("personal", {})
+        if not personal.get("email") or personal.get("email") == "your.email@example.com":
+            warnings.append(
+                "Profile email not configured. Edit config/profile.yaml with your real details"
+            )
+
+        # Check for search keywords
+        keywords = self._profile.get("job_search", {}).get("keywords", [])
+        if not keywords:
+            warnings.append("No job search keywords configured in profile.yaml → job_search → keywords")
+
+        for w in warnings:
+            import sys
+            print(f"⚠ CONFIG WARNING: {w}", file=sys.stderr)
 
     def _apply_env_overrides(self):
         """Override config values with environment variables."""

@@ -23,6 +23,7 @@ env/
 # ===== Sensitive Data =====
 .env
 config/profile.yaml
+!config/profile.yaml.example
 data/resume.pdf
 data/resume.docx
 data/resume.txt

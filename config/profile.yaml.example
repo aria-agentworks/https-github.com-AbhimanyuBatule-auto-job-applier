@@ -1,0 +1,227 @@
+# ============================================================
+# AUTO JOB APPLIER - Your Profile Configuration
+# ============================================================
+# Fill this out ONCE. The AI will use this to fill every form.
+# ============================================================
+
+personal:
+  first_name: "Your First Name"
+  last_name: "Your Last Name"
+  full_name: "Your Full Name"
+  email: "your.email@example.com"
+  phone: "+91-9876543210"
+  phone_country_code: "+91"
+  date_of_birth: "1995-01-15"
+  gender: "Male"  # Male / Female / Non-binary / Prefer not to say
+  nationality: "Indian"
+  current_city: "Pune"
+  current_state: "Maharashtra"
+  current_country: "India"
+  zip_code: "411001"
+  address: "Your Address Line 1, Pune, Maharashtra 411001"
+  linkedin_url: "https://linkedin.com/in/yourprofile"
+  github_url: "https://github.com/yourprofile"
+  portfolio_url: ""
+  website_url: ""
+
+professional:
+  current_title: "Senior SDET"
+  desired_titles:
+    - "Senior SDET"
+    - "Staff SDET"
+    - "QA Automation Lead"
+    - "Senior QA Engineer"
+    - "Test Automation Architect"
+    - "SDET II"
+    - "Software Engineer in Test"
+  years_of_experience: 5
+  current_company: "Your Current Company"
+  current_salary: "1500000"  # Annual in INR
+  expected_salary: "2200000"  # Annual in INR
+  salary_currency: "INR"
+  notice_period_days: 30
+  willing_to_relocate: true
+  preferred_locations:
+    - "Pune"
+    - "Bangalore"
+    - "Hyderabad"
+    - "Remote"
+  work_authorization:
+    india: true
+    usa: false
+    europe: false
+    australia: false
+    uk: false
+  preferred_work_type:  # remote / hybrid / onsite
+    - "remote"
+    - "hybrid"
+  employment_type:
+    - "full-time"
+
+skills:
+  primary:
+    - "Python"
+    - "Java"
+    - "Selenium WebDriver"
+    - "Playwright"
+    - "Cypress"
+    - "API Testing"
+    - "REST Assured"
+    - "Postman"
+    - "pytest"
+    - "TestNG"
+    - "JUnit"
+  secondary:
+    - "JavaScript"
+    - "TypeScript"
+    - "SQL"
+    - "Git"
+    - "Docker"
+    - "Kubernetes"
+    - "Jenkins"
+    - "GitHub Actions"
+    - "Azure DevOps"
+    - "CI/CD"
+    - "AWS"
+    - "Grafana"
+    - "K6"
+    - "JMeter"
+    - "Performance Testing"
+  frameworks:
+    - "Selenium"
+    - "Playwright"
+    - "Cypress"
+    - "Appium"
+    - "Robot Framework"
+    - "REST Assured"
+    - "Karate"
+  tools:
+    - "JIRA"
+    - "Confluence"
+    - "TestRail"
+    - "Allure"
+    - "BrowserStack"
+    - "SauceLabs"
+    - "Postman"
+    - "Swagger"
+    - "Charles Proxy"
+    - "Wireshark"
+
+education:
+  - degree: "Bachelor of Engineering"
+    field: "Computer Science"
+    university: "Your University Name"
+    graduation_year: 2018
+    gpa: "8.5/10"
+
+certifications:
+  - name: "ISTQB Foundation Level"
+    issuer: "ISTQB"
+    year: 2020
+  - name: "AWS Cloud Practitioner"
+    issuer: "Amazon"
+    year: 2022
+
+experience:
+  - company: "Current Company Name"
+    title: "Senior SDET"
+    start_date: "2022-01"
+    end_date: "present"
+    location: "Pune, India"
+    description: >
+      Led test automation framework development using Python and Playwright.
+      Designed and implemented CI/CD pipelines with Jenkins and GitHub Actions.
+      Built API testing suites using REST Assured and Postman.
+      Reduced regression testing time by 70% through parallel execution.
+      Mentored team of 3 junior SDETs.
+    highlights:
+      - "Built Playwright-based E2E framework from scratch serving 200+ tests"
+      - "Implemented API contract testing reducing production bugs by 40%"
+      - "Designed performance testing suite using K6 for 50+ endpoints"
+
+  - company: "Previous Company Name"
+    title: "SDET"
+    start_date: "2019-06"
+    end_date: "2021-12"
+    location: "Bangalore, India"
+    description: >
+      Developed Selenium-based test automation for web applications.
+      Created data-driven testing frameworks using TestNG.
+      Integrated test suites with Jenkins CI/CD pipelines.
+    highlights:
+      - "Automated 500+ test cases across 3 web applications"
+      - "Set up BrowserStack integration for cross-browser testing"
+
+resume:
+  # Path to your resume file (PDF preferred)
+  pdf_path: "data/resume.pdf"
+  docx_path: "data/resume.docx"
+  txt_path: "data/resume.txt"
+
+# Cover letter template - {company}, {role}, {skills} will be replaced
+cover_letter_template: >
+  Dear Hiring Manager,
+
+  I am excited to apply for the {role} position at {company}. With {experience_years}+
+  years of experience in test automation and software quality engineering, I bring
+  deep expertise in {relevant_skills}.
+
+  In my current role, I have {key_achievement}. I am passionate about building
+  robust, scalable test automation solutions and would love to bring this expertise
+  to {company}.
+
+  I look forward to discussing how I can contribute to your team.
+
+  Best regards,
+  {full_name}
+
+# Answers to common application questions
+common_answers:
+  why_interested: >
+    I am passionate about quality engineering and believe in building reliable
+    software through comprehensive test automation. I am excited about the opportunity
+    to contribute to {company}'s mission and bring my expertise in {skills}.
+  
+  greatest_strength: >
+    My ability to architect scalable test automation frameworks from scratch.
+    I combine deep technical knowledge with a strong understanding of software
+    development lifecycles to deliver high-impact testing solutions.
+  
+  why_leaving: >
+    I am looking for a role that offers more technical challenges and opportunities
+    to work on larger-scale test infrastructure problems.
+  
+  salary_expectation: "I am flexible and open to discussing compensation based on the role and responsibilities."
+  
+  willing_to_relocate: "Yes, I am willing to relocate for the right opportunity."
+  
+  visa_sponsorship_needed: "No"
+  
+  authorized_to_work: "Yes, I am authorized to work in India."
+  
+  disability_status: "I do not wish to answer"
+  
+  veteran_status: "I am not a veteran"
+  
+  race_ethnicity: "I do not wish to answer"
+
+# Keywords to match jobs (used by job discovery engine)
+job_search:
+  keywords:
+    - "SDET"
+    - "Software Development Engineer in Test"
+    - "QA Automation"
+    - "Test Automation Engineer"
+    - "Senior QA Engineer"
+    - "Automation Engineer"
+    - "Quality Engineer"
+  exclude_keywords:
+    - "Manual Testing"
+    - "Manual QA"
+    - "Intern"
+    - "Fresher"
+  min_salary: 1200000
+  max_salary: 5000000
+  min_experience: 3
+  max_experience: 8
+  posted_within_days: 7

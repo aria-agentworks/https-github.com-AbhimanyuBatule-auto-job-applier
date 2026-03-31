@@ -58,6 +58,15 @@ class BrowserManager:
         self._geo_lat = config.get("browser", "geolocation_lat", default=18.5204)
         self._geo_lon = config.get("browser", "geolocation_lon", default=73.8567)
 
+        # Proxy config
+        self._proxy_enabled = config.get("browser", "proxy", "enabled", default=False)
+        self._proxy_server = config.get("browser", "proxy", "server", default="")
+        self._proxy_username = config.get("browser", "proxy", "username", default="")
+        self._proxy_password = config.get("browser", "proxy", "password", default="")
+
+        # Select a consistent user agent + platform pair at init
+        self._user_agent, self._platform = self._get_consistent_identity()
+
     async def start(self):
         """Launch browser with anti-detection measures."""
         self._playwright = await async_playwright().start()
@@ -67,22 +76,33 @@ class BrowserManager:
 
         browser_launcher = getattr(self._playwright, self._browser_type)
 
-        # Launch persistent context (keeps cookies/sessions)
-        self._context = await browser_launcher.launch_persistent_context(
+        # Build launch kwargs
+        launch_kwargs = dict(
             user_data_dir=str(self._user_data_dir),
             headless=self._headless,
             viewport={"width": self._viewport_w, "height": self._viewport_h},
             locale="en-US",
             timezone_id="Asia/Kolkata",
-            user_agent=self._get_realistic_user_agent(),
+            user_agent=self._user_agent,
             args=self._get_stealth_args() if self._stealth else [],
             ignore_default_args=["--enable-automation"] if self._stealth else [],
             java_script_enabled=True,
             accept_downloads=True,
-            # Permissions
             permissions=["geolocation"],
             geolocation={"latitude": self._geo_lat, "longitude": self._geo_lon},
         )
+
+        # Add proxy if configured
+        if self._proxy_enabled and self._proxy_server:
+            proxy = {"server": self._proxy_server}
+            if self._proxy_username:
+                proxy["username"] = self._proxy_username
+                proxy["password"] = self._proxy_password
+            launch_kwargs["proxy"] = proxy
+            logger.info(f"Using proxy: {self._proxy_server}")
+
+        # Launch persistent context (keeps cookies/sessions)
+        self._context = await browser_launcher.launch_persistent_context(**launch_kwargs)
 
         # Apply stealth scripts
         if self._stealth:
@@ -360,8 +380,12 @@ class BrowserManager:
         await self._page.screenshot(path=str(filepath), full_page=full_page)
         logger.debug(f"Screenshot saved: {filepath}")
 
-        # Cleanup old screenshots (keep last N)
-        self._cleanup_screenshots()
+        # Cleanup old screenshots periodically (every 10th call)
+        if not hasattr(self, '_screenshot_counter'):
+            self._screenshot_counter = 0
+        self._screenshot_counter += 1
+        if self._screenshot_counter % 10 == 0:
+            self._cleanup_screenshots()
 
         return str(filepath)
 
@@ -380,15 +404,35 @@ class BrowserManager:
 
     # ── Anti-Detection ──────────────────────────────────────────
 
-    def _get_realistic_user_agent(self) -> str:
-        """Return a realistic user agent string."""
-        agents = [
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    def _get_consistent_identity(self) -> tuple[str, str]:
+        """Return a consistent (user_agent, platform) pair to avoid fingerprint mismatch."""
+        identities = [
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "MacIntel",
+            ),
+            (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Win32",
+            ),
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
+                "MacIntel",
+            ),
+            (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Linux x86_64",
+            ),
         ]
-        return random.choice(agents)
+        import os
+        # In CI (Linux), prefer a Linux or Windows UA to match reality
+        if os.environ.get("CI"):
+            identities = [i for i in identities if "Linux" in i[1] or "Win" in i[1]] or identities
+        return random.choice(identities)
+
+    def _get_realistic_user_agent(self) -> str:
+        """Return the pre-selected user agent."""
+        return self._user_agent
 
     def _get_stealth_args(self) -> list[str]:
         """Get browser args for stealth mode."""
@@ -401,7 +445,7 @@ class BrowserManager:
             "--disable-background-timer-throttling",
             "--disable-backgrounding-occluded-windows",
             "--disable-renderer-backgrounding",
-            "--window-size=1920,1080",
+            f"--window-size={self._viewport_w},{self._viewport_h}",
         ]
 
     async def _apply_stealth_scripts(self):
@@ -430,9 +474,9 @@ class BrowserManager:
                 get: () => ['en-US', 'en', 'hi']
             });
             
-            // Override platform
+            // Override platform (matched to user agent)
             Object.defineProperty(navigator, 'platform', {
-                get: () => 'MacIntel'
+                get: () => '""" + self._platform + """'
             });
             
             // Override hardware concurrency  

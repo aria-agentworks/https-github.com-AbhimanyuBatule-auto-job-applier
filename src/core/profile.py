@@ -148,21 +148,36 @@ class ProfileManager:
         if not self.cover_letter_template:
             return ""
         relevant_skills = ", ".join(skills or self.skills.top_skills)
-        key_achievement = ""
+        key_achievement = "delivering high-quality automation solutions"
         if self.experience:
             highlights = self.experience[0].highlights
             if highlights:
                 key_achievement = highlights[0]
 
-        return self.cover_letter_template.format(
-            company=company,
-            role=role,
-            experience_years=self.professional.years_of_experience,
-            relevant_skills=relevant_skills,
-            key_achievement=key_achievement,
-            full_name=self.personal.full_name,
-            skills=relevant_skills,
-        )
+        from string import Template
+        # Use safe_substitute to avoid KeyError on unknown placeholders
+        tmpl = Template(self.cover_letter_template.replace("{", "${").replace("}", "}"))
+        try:
+            return self.cover_letter_template.format(
+                company=company,
+                role=role,
+                experience_years=self.professional.years_of_experience,
+                relevant_skills=relevant_skills,
+                key_achievement=key_achievement,
+                full_name=self.personal.full_name,
+                skills=relevant_skills,
+            )
+        except (KeyError, IndexError):
+            # Fall back to safe substitution if template has unknown keys
+            return tmpl.safe_substitute(
+                company=company,
+                role=role,
+                experience_years=self.professional.years_of_experience,
+                relevant_skills=relevant_skills,
+                key_achievement=key_achievement,
+                full_name=self.personal.full_name,
+                skills=relevant_skills,
+            )
 
     def to_flat_dict(self) -> dict:
         """

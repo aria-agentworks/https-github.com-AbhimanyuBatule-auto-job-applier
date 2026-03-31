@@ -15,6 +15,13 @@ app:
   max_retries: 2
   log_level: "INFO"       # DEBUG, INFO, WARNING, ERROR
 
+  # Company blacklist - skip applications to these companies
+  blacklist_companies: []
+  # Example:
+  # blacklist_companies:
+  #   - "Scam Corp"
+  #   - "Company I Already Work At"
+
 # AI Configuration (Google Gemini Free Tier)
 ai:
   provider: "gemini"  # gemini / ollama / groq

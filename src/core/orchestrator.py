@@ -130,6 +130,9 @@ class Orchestrator:
 
                 logger.info(f"\n--- Processing: {portal.portal_name.upper()} ---")
                 try:
+                    # Health check browser before each portal
+                    await self.browser.ensure_alive()
+
                     results = await asyncio.wait_for(
                         portal.discover_and_apply(),
                         timeout=600,  # 10 min max per portal
@@ -308,22 +311,22 @@ class Orchestrator:
     async def show_stats(self) -> dict:
         """Show application statistics."""
         await self.tracker.initialize()
+        try:
+            today = await self.tracker.get_today_stats()
+            total = await self.tracker.get_total_stats()
+            portal_stats = await self.tracker.get_portal_stats()
+            recent = await self.tracker.get_recent_applications(10)
+            trend = await self.tracker.get_weekly_trend()
 
-        today = await self.tracker.get_today_stats()
-        total = await self.tracker.get_total_stats()
-        portal_stats = await self.tracker.get_portal_stats()
-        recent = await self.tracker.get_recent_applications(10)
-        trend = await self.tracker.get_weekly_trend()
-
-        await self.tracker.close()
-
-        return {
-            "today": today,
-            "total": total,
-            "portal_stats": portal_stats,
-            "recent": recent,
-            "weekly_trend": trend,
-        }
+            return {
+                "today": today,
+                "total": total,
+                "portal_stats": portal_stats,
+                "recent": recent,
+                "weekly_trend": trend,
+            }
+        finally:
+            await self.tracker.close()
 
     async def export_to_sheets(self):
         """Export all application data to Google Sheets."""

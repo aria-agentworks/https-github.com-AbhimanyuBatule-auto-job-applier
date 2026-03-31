@@ -3,6 +3,7 @@ Notification Manager - Sends notifications via multiple channels.
 Desktop, Telegram, Email.
 """
 
+import asyncio
 import logging
 from src.core.config import config
 
@@ -36,13 +37,14 @@ class NotificationManager:
         """Send desktop notification."""
         try:
             from plyer import notification
-            notification.notify(
+            await asyncio.to_thread(
+                notification.notify,
                 title=title,
-                message=message[:256],  # Limit length
+                message=message[:256],
                 timeout=10,
             )
         except Exception as e:
-            logger.debug(f"Desktop notification failed: {e}")
+            logger.warning(f"Desktop notification failed: {e}")
 
     async def _send_telegram(self, title: str, message: str):
         """Send Telegram notification."""
@@ -61,14 +63,11 @@ class NotificationManager:
                     json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
                 )
         except Exception as e:
-            logger.debug(f"Telegram notification failed: {e}")
+            logger.warning(f"Telegram notification failed: {e}")
 
     async def _send_email(self, title: str, message: str):
         """Send email notification."""
         try:
-            import smtplib
-            from email.mime.text import MIMEText
-
             smtp_server = config.get("notifications", "email", "smtp_server")
             smtp_port = config.get("notifications", "email", "smtp_port", default=587)
             sender = config.get("notifications", "email", "sender_email")
@@ -78,16 +77,19 @@ class NotificationManager:
             if not all([smtp_server, sender, password, recipient]):
                 return
 
-            msg = MIMEText(message)
-            msg["Subject"] = title
-            msg["From"] = sender
-            msg["To"] = recipient
+            def _send_sync():
+                import smtplib
+                from email.mime.text import MIMEText
+                msg = MIMEText(message)
+                msg["Subject"] = title
+                msg["From"] = sender
+                msg["To"] = recipient
+                with smtplib.SMTP(smtp_server, smtp_port) as server:
+                    server.starttls()
+                    server.login(sender, password)
+                    server.send_message(msg)
 
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(sender, password)
-                server.send_message(msg)
-
+            await asyncio.to_thread(_send_sync)
             logger.info("Email notification sent")
         except Exception as e:
-            logger.debug(f"Email notification failed: {e}")
+            logger.warning(f"Email notification failed: {e}")
