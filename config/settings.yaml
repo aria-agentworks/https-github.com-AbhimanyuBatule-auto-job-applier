@@ -1,33 +1,26 @@
-# ============================================================
+# ===============================
 # AUTO JOB APPLIER - Application Settings
-# ============================================================
+# ===============================
 
 app:
   name: "Auto Job Applier"
   version: "1.0.0"
   daily_application_target: 10
   max_daily_applications: 25
-  headless_browser: true  # Set false for debugging
-  slow_mode_ms: 500       # Milliseconds between actions (anti-detection)
+  headless_browser: true
+  slow_mode_ms: 500
   screenshot_on_error: true
   screenshot_on_success: true
   retry_failed: true
   max_retries: 2
-  log_level: "INFO"       # DEBUG, INFO, WARNING, ERROR
-
-  # Company blacklist - skip applications to these companies
+  log_level: "INFO"
   blacklist_companies: []
-  # Example:
-  # blacklist_companies:
-  #   - "Scam Corp"
-  #   - "Company I Already Work At"
 
-# AI Configuration (Google Gemini Free Tier)
 ai:
-  provider: "gemini"  # gemini / ollama / groq
+  provider: "gemini"
   gemini:
-    api_key: ""  # Get from https://aistudio.google.com/app/apikey
-    model: "gemini-2.0-flash"  # Free tier model
+    api_key: "PASTE_YOUR_GEMINI_KEY_HERE"
+    model: "gemini-2.0-flash"
     max_requests_per_minute: 15
     max_requests_per_day: 1500
     temperature: 0.3
@@ -36,115 +29,96 @@ ai:
     model: "llama3.1:8b"
   groq:
     api_key: ""
-    model: "llama-3.1-70b-versatile"
+    model: "llama-3.1-70b-vertex"
 
-# Browser Configuration
 browser:
-  type: "chromium"  # chromium / firefox / webkit
-  user_data_dir: "data/browser_profile"  # Persist login sessions!
+  type: "chromium"
+  user_data_dir: "data/browser_profile"
   viewport_width: 1920
   viewport_height: 1080
   timeout_ms: 30000
   navigation_timeout_ms: 60000
-  # Anti-detection
   stealth_mode: true
   random_delays: true
   min_delay_ms: 800
   max_delay_ms: 3000
-  # Proxy (optional)
   proxy:
     enabled: false
     server: ""
     username: ""
     password: ""
 
-# Database
 database:
   path: "data/applications.db"
 
-# Portal-specific settings
 portals:
   linkedin:
     enabled: true
     base_url: "https://www.linkedin.com"
-    jobs_url: "https://www.linkedin.com/jobs/search/"
+    jobs_url: "https://www.linkedin.com/jobs/search/?keywords=Healthcare%20-%20RCM%20%7C%20%20MedTech%20Solutions%20Architect%20%7C%20Revenue%20Cycle%20Automation%20%7C%20Healthcare%20AI%20SME&geoId=92000000"
     max_applications_per_day: 5
-    easy_apply_only: false  # Set true to only use Easy Apply
-    # Login via saved browser session (login once manually)
+    easy_apply_only: false
     use_saved_session: true
 
   naukri:
     enabled: true
     base_url: "https://www.naukri.com"
-    jobs_url: "https://www.naukri.com/mnjuser/homepage"
+    jobs_url: "https://www.naukri.com/Healthcare-RCM-MedTech-Solutions-Architect-Revenue-Cycle-Automation-Healthcare-AI-SME-jobs"
     max_applications_per_day: 5
     use_saved_session: true
 
   wellfound:
     enabled: true
     base_url: "https://wellfound.com"
-    jobs_url: "https://wellfound.com/jobs"
+    jobs_url: "https://wellfound.com/jobs?query=Healthcare%20RCM%2C%20MedTech%20Solutions%20Architect%2C%20Revenue%20Cycle%20Automation%2C%20Healthcare%20AI%20SME"
     max_applications_per_day: 3
     use_saved_session: true
 
   instahyre:
     enabled: true
     base_url: "https://www.instahyre.com"
+    jobs_url: "https://www.instahyre.com/jobs?query=Healthcare%20RCM%20MedTech%20Solutions%20Architect%20Revenue%20Cycle%20Automation%20Healthcare%20AI%20SME"
     max_applications_per_day: 3
     use_saved_session: true
 
   generic_career_page:
     enabled: true
     max_applications_per_day: 5
-    # URLs of company career pages to monitor
     company_career_urls: []
 
-# Scheduler
 scheduler:
   enabled: true
-  # Run at 9 AM daily
   cron_expression: "0 9 * * *"
-  # Or interval in hours
   interval_hours: 24
   timezone: "Asia/Kolkata"
 
-# Notifications
 notifications:
   enabled: true
-  # Daily summary email
   email:
     enabled: false
     smtp_server: "smtp.gmail.com"
     smtp_port: 587
     sender_email: ""
-    sender_password: ""  # Use app password
+    sender_password: ""
     recipient_email: ""
-  # Telegram bot
   telegram:
     enabled: false
     bot_token: ""
     chat_id: ""
-  # Desktop notification
   desktop:
     enabled: true
 
-# Logging
 logging:
   dir: "logs"
   max_file_size_mb: 10
   backup_count: 5
   format: "%(asctime)s | %(levelname)-8s | %(name)-25s | %(message)s"
 
-# ── Reporting / Google Sheets ──────────────────────────────────
-# Automatically syncs every application to a Google Sheet so you
-# can see what was applied, when, status, match score, etc.
 reporting:
   google_sheets:
     enabled: true
-    sheet_id: ""  # The ID from your Google Sheet URL (or GOOGLE_SHEET_ID env var)
-    # Service account creds JSON at: data/google_sheets_creds.json
-    # See README for setup instructions
+    sheet_id: ""
   csv:
-    enabled: true  # Always export CSV as fallback
+    enabled: true
     path: "data/applications_export.csv"
     daily_reports_dir: "data/daily_reports"
