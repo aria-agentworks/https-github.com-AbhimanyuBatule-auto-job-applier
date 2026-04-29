@@ -1,6 +1,6 @@
-# ===============================
+# =====================================================
 # AUTO JOB APPLIER - Application Settings
-# ===============================
+# =====================================================
 
 app:
   name: "Auto Job Applier"
@@ -19,7 +19,7 @@ app:
 ai:
   provider: "gemini"
   gemini:
-    api_key: "PASTE_YOUR_GEMINI_KEY_HERE"
+    api_key: "AIzaSyDlaVUVOX1JUGDLmr4-WPFNVenj0VMesxw"
     model: "gemini-2.0-flash"
     max_requests_per_minute: 15
     max_requests_per_day: 1500
@@ -55,7 +55,7 @@ portals:
   linkedin:
     enabled: true
     base_url: "https://www.linkedin.com"
-    jobs_url: "https://www.linkedin.com/jobs/search/?keywords=Healthcare%20-%20RCM%20%7C%20%20MedTech%20Solutions%20Architect%20%7C%20Revenue%20Cycle%20Automation%20%7C%20Healthcare%20AI%20SME&geoId=92000000"
+    jobs_url: "https://www.linkedin.com/jobs/search/?keywords=Healthcare%20%20RCM%20%26%20%20MedTech%20Solutions%20Architect%20%7C%20Revenu%20Cycle%20Automation%20%7C%20Healthcare%20AI%20SM&geoId=92000000"
     max_applications_per_day: 5
     easy_apply_only: false
     use_saved_session: true
@@ -63,21 +63,21 @@ portals:
   naukri:
     enabled: true
     base_url: "https://www.naukri.com"
-    jobs_url: "https://www.naukri.com/Healthcare-RCM-MedTech-Solutions-Architect-Revenue-Cycle-Automation-Healthcare-AI-SME-jobs"
+    jobs_url: "https://www.naukri.com/Healthcare-RCM-MedTech-Solutions-Architect-Revenu-Cycle-Automation-Healthcare-AI-SME-jobs"
     max_applications_per_day: 5
     use_saved_session: true
 
   wellfound:
     enabled: true
     base_url: "https://wellfound.com"
-    jobs_url: "https://wellfound.com/jobs?query=Healthcare%20RCM%2C%20MedTech%20Solutions%20Architect%2C%20Revenue%20Cycle%20Automation%2C%20Healthcare%20AI%20SME"
+    jobs_url: "https://wellfound.com/jobs?q=Healthcare%20RCM,%20MedTech%20Solutions%20Architect,%20Revenu%20Cycle%20Automation,%20Healthcare%20AI%20SME"
     max_applications_per_day: 3
     use_saved_session: true
 
   instahyre:
     enabled: true
     base_url: "https://www.instahyre.com"
-    jobs_url: "https://www.instahyre.com/jobs?query=Healthcare%20RCM%20MedTech%20Solutions%20Architect%20Revenue%20Cycle%20Automation%20Healthcare%20AI%20SME"
+    jobs_url: "https://www.instahyre.com/jobs?q=Healthcare%20RCM%20MedTech%20Solutions%20Architect%20Revenu%20Cycle%20Automation%20Healthcare%20AI%20SME"
     max_applications_per_day: 3
     use_saved_session: true
 
